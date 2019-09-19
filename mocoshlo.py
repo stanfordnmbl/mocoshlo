@@ -70,7 +70,7 @@ def submit():
                 "submit more jobs."))
     parser.set_defaults(sshmaster=True, sshexit=True)
     parser.add_argument('--command', type=str, default=None,
-                        help=("The job should run the given command."
+                        help=("The job should run the given command. "
                               "Otherwise, the job is to run an OMOCO file named "
                               "setup.omoco."))
     parser.add_argument('--mocotag', type=str, default='latest',
@@ -211,16 +211,19 @@ gdrive upload --recursive --parent $opensim_moco_folder_id {server_job_dir}
     if args.exclude:
         rsync_args = f'--exclude={args.exclude}'
 
+    print(f"Copying directory '{directory}'...")
     os.system(f"rsync --rsh='ssh -o ControlPath={control_path}' "
               f"--archive --compress --recursive {rsync_args} "
               f"'{directory}/' {server}:{server_job_dir}")
 
+    print("Submitting the job...")
     os.system(f'ssh -S {control_path} {server} '
               f'"cd {server_job_dir} && echo \"{note}\" > note.txt && '
               f'sbatch {name}.batch"')
 
     if sshexit:
         os.system(f'ssh -S {control_path} -O exit {server}')
+    print("Job submitted.")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
