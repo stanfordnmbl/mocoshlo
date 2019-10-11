@@ -191,13 +191,7 @@ else
     echo "opensim-moco folder exists."
 fi
 
-# date_folder_id=$(gdrive list | grep 'opensim-moco/{date}' | cut -d" " -f1)
-# if [[ -z "$date_folder_id" ]]; then
-#     date_folder_id=$(gdrive mkdir --parent $opensim_moco_folder_id {date} | cut -d" " -f2)
-# fi
-
 # Copy results.
-# gdrive upload --recursive --parent $date_folder_id {server_job_dir}
 gdrive upload --recursive --parent $opensim_moco_folder_id {server_job_dir}
 
 """
