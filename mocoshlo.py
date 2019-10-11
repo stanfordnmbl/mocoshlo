@@ -183,7 +183,7 @@ module load system gdrive
 
 # TODO: What happens when we hit max files to list (--max)?
 # TODO: Sometimes, we create duplicate opensim-moco folders in Google Drive.
-opensim_moco_folder_id=$(gdrive list --absolute | grep 'opensim-moco ' | cut -d" " -f1)
+opensim_moco_folder_id=$(gdrive list --no-header --absolute --name-width 0 --query "name = 'opensim-moco' and trashed = false and 'root' in parents" | cut -d" " -f1)
 if [[ -z "$opensim_moco_folder_id" ]]; then
     echo "Creating opensim-moco folder."
     opensim_moco_folder_id=$(gdrive mkdir opensim-moco | cut -d" " -f2)
@@ -191,13 +191,7 @@ else
     echo "opensim-moco folder exists."
 fi
 
-# date_folder_id=$(gdrive list | grep 'opensim-moco/{date}' | cut -d" " -f1)
-# if [[ -z "$date_folder_id" ]]; then
-#     date_folder_id=$(gdrive mkdir --parent $opensim_moco_folder_id {date} | cut -d" " -f2)
-# fi
-
 # Copy results.
-# gdrive upload --recursive --parent $date_folder_id {server_job_dir}
 gdrive upload --recursive --parent $opensim_moco_folder_id {server_job_dir}
 
 """
