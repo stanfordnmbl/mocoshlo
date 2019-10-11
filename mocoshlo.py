@@ -125,9 +125,9 @@ def submit():
             os.path.join(directory, 'setup.omoco'))):
         raise Exception(f'setup.omoco is missing from {directory}.')
 
-    # if note:
-    #     with open(os.path.join(directory, 'note.txt'), 'w') as f:
-    #         f.write(note)
+    if note:
+        with open(os.path.join(directory, f'{name}_note.txt'), 'w') as f:
+            f.write(note)
 
 
     home = str(Path.home()) # Should work on Windows and UNIX.
