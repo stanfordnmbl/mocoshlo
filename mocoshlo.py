@@ -160,8 +160,8 @@ def submit():
 
     batch = f"""#!/bin/bash
 #SBATCH --job-name={name}
-#SBATCH --output={name}.out
-#SBATCH --error={name}.err
+#SBATCH --output={name}.out.txt
+#SBATCH --error={name}.err.txt
 #SBATCH --time={duration}
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user={sunetid}@stanford.edu
@@ -206,7 +206,7 @@ mv {server_job_dir} {mocojobs_dir}/completed/
 
 """
 
-    with open(f'{directory}/{name}.batch', 'w') as f:
+    with open(f'{directory}/{name}.batch.sh', 'w') as f:
         f.write(batch)
 
     # Re-use existing SSH tunnel.
@@ -225,7 +225,7 @@ mv {server_job_dir} {mocojobs_dir}/completed/
     print("Submitting the job...")
     os.system(f'ssh -S {control_path} {server} '
               f'"cd {server_job_dir} && echo \"{note}\" > note.txt && '
-              f'sbatch {name}.batch"')
+              f'sbatch {name}.batch.sh"')
 
     print("Job submitted.")
 
