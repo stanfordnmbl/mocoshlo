@@ -147,6 +147,10 @@ def submit():
     mocojobs_dir = f"~/nmbl/mocojobs/"
     server_job_dir = f"{mocojobs_dir}{job_directory}"
     if sshmaster:
+        # -M: Places the ssh client into master mode for connection sharing.
+        # -f: Requests ssh to go to background just before command execution.
+        # -N: Do not execute a remote command.
+        # -S: Control path.
         os.system(f'ssh -M -f -N -S {control_path} {server}')
 
 
