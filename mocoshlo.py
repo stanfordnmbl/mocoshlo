@@ -192,6 +192,18 @@ fi
 # Copy results.
 gdrive upload --recursive --parent $opensim_moco_folder_id {server_job_dir}
 
+# If the results were successfully uploaded, delete the folder from the
+# cluster to save disk space. Can't delete this batch script though.
+upload_exit_status=$?
+if [ $upload_exit_status -eq 0 ]; then
+    find {server_job_dir} -type f -not -name '{name}.*' -delete
+fi
+
+mkdir -p {mocojobs_dir}/completed
+mv {server_job_dir} {mocojobs_dir}/completed/
+
+
+
 """
 
     with open(f'{directory}/{name}.batch', 'w') as f:
