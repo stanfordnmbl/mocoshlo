@@ -7,6 +7,25 @@ import argparse
 import datetime
 from pathlib import Path
 
+def get_sunetid(sunetid_arg):
+    sunetid = None
+    if sunetid_arg:
+        sunetid = sunetid_arg
+    else:
+        with open('config.yaml') as f:
+            config = yaml.safe_load(f)
+        sunetid = config['sunetid']
+    return sunetid
+
+def get_control_path():
+    home = str(Path.home()) # Should work on Windows and UNIX.
+    if not os.path.exists(f'{home}/.ssh/controlmasters/'):
+        os.makedirs(f'{home}/.ssh/controlmasters')
+    return f"{home}/.ssh/controlmasters/%C"
+
+def get_server(sunetid):
+    return f"{sunetid}@login.sherlock.stanford.edu"
+
 def pull():
     parser = argparse.ArgumentParser(
         description="Download a container from the internet to the Sherlock "
@@ -30,15 +49,9 @@ def pull():
     if len(args.mocotag):
         name = 'opensim-moco_{args.mocotag}.sif'
 
-    sunetid = None
-    if args.sunetid:
-        sunetid = args.sunetid
-    else:
-        with open('config.yaml') as f:
-            config = yaml.safe_load(f)
-        sunetid = config['sunetid']
+    sunetid = get_sunetid(args.sunetid)
 
-    server = f"{sunetid}@login.sherlock.stanford.edu"
+    server = get_server(sunetid)
     dir = f'$GROUP_HOME/{sunetid}/opensim-moco'
     os.system(f"ssh {server} 'mkdir -p {dir} && cd {dir} && "
               "export PATH=$PATH:/usr/sbin && "
@@ -47,7 +60,8 @@ def pull():
 def submit():
     parser = argparse.ArgumentParser(
             description="Submit a job to the Sherlock cluster using an "
-                        "existing container.")
+                        "existing container. "
+                        "You must run the sshmaster command first.")
     parser.add_argument('directory', type=str, help="Location of input files.")
     parser.add_argument('--sunetid', type=str, default=None,
                         help="SUNetID for logging into Sherlock. Overrides the "
@@ -60,16 +74,6 @@ def submit():
     parser.add_argument('--note', type=str, default="",
             help="A note to save to the directory (as note.txt).")
 
-    parser.add_argument('--sshmaster', dest='sshmaster', action='store_true',
-            help="Start master SSH session (default).")
-    parser.add_argument('--no-sshmaster', dest='sshmaster', action='store_false',
-            help="Do not start master SSH session (if you already started one).")
-    parser.add_argument('--sshexit', dest='sshexit', action='store_true',
-            help="Exit the master session after submitting the job (default).")
-    parser.add_argument('--no-sshexit', dest='sshexit', action='store_false',
-            help=("Do not exit the master session after submitting (if you plan to "
-                "submit more jobs."))
-    parser.set_defaults(sshmaster=True, sshexit=True)
     parser.add_argument('--command', type=str, default=None,
                         help=("The job should run the given command. "
                               "Otherwise, the job is to run an OMOCO file named "
@@ -104,20 +108,24 @@ def submit():
         name = Path(directory).absolute().name
     duration = args.duration
     note = args.note
-    sshmaster = args.sshmaster
-    sshexit = args.sshexit
 
     if ' ' in name:
         raise Exception("Cannot have spaces in name.")
 
-    sunetid = None
-    if args.sunetid:
-        sunetid = args.sunetid
-    else:
-        with open('config.yaml') as f:
-            config = yaml.safe_load(f)
-        sunetid = config['sunetid']
+    sunetid = get_sunetid(args.sunetid)
+    control_path = get_control_path()
+    server = get_server(sunetid)
 
+    import subprocess
+    ssh_is_open = True
+    try:
+        subprocess.check_call(f'ssh -S {control_path} {server} -O check',
+                                  shell=True)
+    except subprocess.CalledProcessError:
+        ssh_is_open = False
+    if not ssh_is_open:
+        raise Exception('SSH connection is not open; '
+                        'use command sshmaster first.')
 
 
     # Check that the directory contains setup.omoco.
@@ -125,33 +133,19 @@ def submit():
             os.path.join(directory, 'setup.omoco'))):
         raise Exception(f'setup.omoco is missing from {directory}.')
 
+
     if note:
         with open(os.path.join(directory, f'{name}_note.txt'), 'w') as f:
             f.write(note)
 
 
-    home = str(Path.home()) # Should work on Windows and UNIX.
-    if not os.path.exists(f'{home}/.ssh/controlmasters/'):
-        os.makedirs(f'{home}/.ssh/controlmasters')
-    # Create master (-M) SSH session in the background (-f), without running
-    # a command (-N), with
-    # https://unix.stackexchange.com/questions/83806/how-to-kill-ssh-session-that-was-started-with-the-f-option-run-in-background
-    control_path = "~/.ssh/controlmasters/%C"
-    server = f"{sunetid}@login.sherlock.stanford.edu"
     now = datetime.datetime.now()
     date = now.strftime('%Y-%m-%d')
     time = '%s.%i' % (now.strftime('%Y-%m-%dT%H%M%S'), now.microsecond)
-    # TODO: remove microseconds and put in SLURM JOBID.
     job_directory = '%s-%s' % (time, name)
     print(f"Submitting {job_directory}")
     mocojobs_dir = f"~/nmbl/mocojobs/"
     server_job_dir = f"{mocojobs_dir}{job_directory}"
-    if sshmaster:
-        # -M: Places the ssh client into master mode for connection sharing.
-        # -f: Requests ssh to go to background just before command execution.
-        # -N: Do not execute a remote command.
-        # -S: Control path.
-        os.system(f'ssh -M -f -N -S {control_path} {server}')
 
 
     container = f'$GROUP_HOME/{sunetid}/opensim-moco/opensim-moco_{args.mocotag}.sif'
@@ -220,9 +214,43 @@ gdrive upload --recursive --parent $opensim_moco_folder_id {server_job_dir}
               f'"cd {server_job_dir} && echo \"{note}\" > note.txt && '
               f'sbatch {name}.batch"')
 
-    if sshexit:
-        os.system(f'ssh -S {control_path} -O exit {server}')
     print("Job submitted.")
+
+
+def sshmaster():
+    parser = argparse.ArgumentParser(
+        description="Start a 2-hour persistent SSH connection to Sherlock.")
+    parser.add_argument('--sunetid', type=str, default=None,
+                        help="SUNetID for logging into Sherlock. Overrides the "
+                             "the sunetid field in a config.yaml file in the "
+                             "current directory.")
+    args = parser.parse_args(sys.argv[2:])
+
+
+    sunetid = get_sunetid(args.sunetid)
+
+    control_path = get_control_path()
+    server = get_server(sunetid)
+    # Create master (-M) SSH session in the background (-f), without running
+    # a command (-N), for 2 hours (-o and ControlPersist).
+    # https://unix.stackexchange.com/questions/83806/how-to-kill-ssh-session-that-was-started-with-the-f-option-run-in-background
+    # -S: Control path.
+    ssh_duration_seconds = 2 * 60 * 60
+    os.system(f"ssh -o 'ControlPersist {ssh_duration_seconds}' "
+              f"-M -f -N -S {control_path} {server}")
+
+def sshexit():
+    parser = argparse.ArgumentParser(
+        description="Start a persistent SSH connection to Sherlock.")
+    parser.add_argument('--sunetid', type=str, default=None,
+                        help="SUNetID for logging into Sherlock. Overrides the "
+                             "the sunetid field in a config.yaml file in the "
+                             "current directory.")
+    args = parser.parse_args(sys.argv[2:])
+    sunetid = get_sunetid(args.sunetid)
+    control_path = get_control_path()
+    server = get_server(sunetid)
+    os.system(f'ssh -S {control_path} -O exit {server}')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -232,15 +260,21 @@ if __name__ == '__main__':
             "'pull': Download a container from the internet to the Sherlock "
             "cluster (experimental). "
             "'submit': Submit a job to the Sherlock cluster using an existing "
-            "container."
+            "container. "
+            "'sshmaster': Start a persistent SSH session; required before submit. "
+            "'sshexit': End the persistent SSH session. "
     )
     parser.add_argument('command', type=str, help=help,
-                        choices=('pull', 'submit'))
+                        choices=('pull', 'submit', 'sshmaster', 'sshexit'))
     args = parser.parse_args(sys.argv[1:2])
     if args.command == 'pull':
         pull()
     elif args.command == 'submit':
         submit()
+    elif args.command == 'sshmaster':
+        sshmaster()
+    elif args.command == 'sshexit':
+        sshexit()
     else:
         raise RuntimeError()
 
