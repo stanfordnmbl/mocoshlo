@@ -212,7 +212,7 @@ gdrive upload --recursive --parent $opensim_moco_folder_id {server_job_dir}
     if args.exclude:
         rsync_args = f'--exclude={args.exclude}'
 
-    print(f"Copying directory '{directory}'...")
+    print(f"Copying directory '{os.path.abspath(directory)}'...")
     os.system(f"rsync --rsh='ssh -o ControlPath={control_path}' "
               f"--archive --compress --recursive {rsync_args} "
               f"'{directory}/' {server}:{server_job_dir}")
