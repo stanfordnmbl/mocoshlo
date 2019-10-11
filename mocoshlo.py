@@ -86,8 +86,10 @@ def submit():
                         help="Absolute path to the singularity container (.sif) "
                              "on the cluster. Overrides --mocotag.")
     parser.add_argument('--exclude', type=str, default=None,
+                        action='append',
                         help="Exclude files from copying to the cluster. This is "
-                             "passed onto rsync --exclude.")
+                             "passed onto rsync --exclude. "
+                             "This argument can be repeated.")
     parser.add_argument('--parallelism', type=int, default=4,
                         help="Number of parallel threads. Default: 4.")
 
@@ -202,7 +204,8 @@ gdrive upload --recursive --parent $opensim_moco_folder_id {server_job_dir}
     os.system(f'ssh -S {control_path} {server} "mkdir -p {mocojobs_dir}"')
     rsync_args = ''
     if args.exclude:
-        rsync_args = f'--exclude={args.exclude}'
+        for exc in args.exclude:
+            rsync_args += f'--exclude={exc} '
 
     print(f"Copying directory '{os.path.abspath(directory)}'...")
     os.system(f"rsync --rsh='ssh -o ControlPath={control_path}' "
