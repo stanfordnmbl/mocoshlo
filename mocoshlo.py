@@ -55,7 +55,7 @@ def pull():
     dir = f'$GROUP_HOME/{sunetid}/opensim-moco'
     os.system(f"ssh {server} 'mkdir -p {dir} && cd {dir} && "
               "export PATH=$PATH:/usr/sbin && "
-              f"srun --time=30 singularity pull --force {args.mocotag} {args.URL}'")
+              f"srun --time=59 singularity pull --force {args.mocotag} {args.URL}'")
 
 def submit():
     parser = argparse.ArgumentParser(
